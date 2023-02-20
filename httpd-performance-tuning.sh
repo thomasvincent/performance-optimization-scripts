@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
+
 set -eo pipefail
+
+# Set default maximum memory percentage to 65%
+: "${MAX_MEM_PERCENT:=65}"
 
 function main {
     local APACHE_SERVER="httpd"
@@ -77,13 +81,21 @@ function main {
     # Calculate change in CPU utilization
     local cpu_change
     cpu_change=$(echo "($after_cpu-$before_cpu)/$before_cpu*100" | bc -l)
-echo "Change in CPU utilization: $cpu_change%"
+    echo "Change in CPU utilization: $cpu_change%"
 
-# Calculate change in response time
-local response_time_change
-response_time_change=$(echo "($after_response_time-$before_response_time)/$before_response_time*100" | bc -l)
-echo "Change in response time: $response_time_change%"
+    # Calculate change in response time
+    local response_time_change
+    response_time_change=$(echo "($after_response_time-$before_response_time)/$before_response_time*100" | bc -l)
+    echo "Change in response time: $response_time_change%"
 
-}
+    # Check memory usage
+    local MAX_MEM_PERCENT=65
+    local max_mem
+    max_mem=$((mem_total * MAX_MEM_PERCENT / 100))
+    local current_mem
+    current_mem=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
 
-[[ "$0" == "$BASH_SOURCE" ]] && main
+    if [ "$current_mem" -lt "$max_mem" ]; then
+        >&2 echo "Not enough memory available. Exiting script."
+        exit 1
+    fi
